@@ -1,0 +1,17 @@
+{
+  "name": "Reactor Slackbot",
+  "description": "A Go slackbot using bayesian classification to predict reactions to messages.",
+  "repository": "https://github.com/kujenga/reactor",
+  "logo": "https://raw.githubusercontent.com/kujenga/reactor/master/img/nuclear.jpg",
+  "keywords": ["slack", "classification", "reaction"],
+  "env": {
+    "SLACK_TOKEN": {
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/go"
+    }
+  ]
+}
