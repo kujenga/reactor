@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -32,6 +33,14 @@ var (
 	mut     sync.RWMutex
 )
 
+func port() string {
+	val := "8080"
+	if p := os.Getenv("PORT"); p != "" {
+		val = p
+	}
+	return ":" + val
+}
+
 func main() {
 	flag.Parse()
 
@@ -41,6 +50,12 @@ func main() {
 	}
 
 	log.Infoln("get ready for reactions!")
+
+	// for heroku, we
+
+	go log.Errorln(http.ListenAndServe(port(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Reactor"))
+	})))
 
 	bot := slackbot.New(os.Getenv("SLACK_TOKEN"))
 
