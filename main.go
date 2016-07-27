@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -16,7 +17,12 @@ import (
 )
 
 const (
-	learnerCount = 10
+	// number of goroutines performing learning on training data
+	// the bayesian library doesn't seem to be threadsafe, so for now this stays at 1
+	learnerCount = 1
+
+	// the number of messages to retrieve from each channel
+	messageCount = 100
 )
 
 var (
@@ -40,8 +46,10 @@ func main() {
 
 	go setup(bot.Client)
 
-	// anything with "look around" causes us to intialize the reactor
-	bot.Hear("(?i)look around(.*)").MessageHandler(LookAroundHandler)
+	// reintialize the reactor
+	bot.Hear("^update&").MessageHandler(UpdateHandler)
+	// display a help message to the user
+	bot.Hear("^help$").MessageHandler(HelpHandler)
 	// react to everything else
 	bot.Hear(".*").MessageHandler(ReactionHandler)
 	bot.Run()
@@ -72,8 +80,37 @@ func ReactionHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageE
 	bot.Reply(evt, fmt.Sprintf("%s :%s:", randPrefix, reaction), slackbot.WithTyping)
 }
 
-// LookAroundHandler examines existing messages to gather information
-func LookAroundHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent) {
+// HelpHandler responds with help information for this channel
+func HelpHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent) {
+	mut.RLock()
+	defer mut.RUnlock()
+
+	log.Infoln("Helping the user:", evt.Text)
+
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(fmt.Sprintf("@reactor guesses reactions to messages, based on the past %d seen in each channel.\n", messageCount))
+
+	if reactor != nil {
+		buf.WriteString(" It is currently aware of the following reactions:")
+		i := 0
+		for _, class := range reactor.Classifier.Classes {
+			if i == 0 {
+				buf.WriteString(" :")
+			} else if i == len(reactor.Classifier.Classes)-1 {
+				buf.WriteString(", and :")
+			} else {
+				buf.WriteString(", :")
+			}
+			buf.WriteString(string(class))
+			buf.WriteString(":")
+		}
+	}
+
+	bot.Reply(evt, buf.String(), slackbot.WithTyping)
+}
+
+// UpdateHandler examines existing messages to gather information
+func UpdateHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent) {
 	mut.Lock()
 	defer mut.Unlock()
 
@@ -92,24 +129,37 @@ func setup(client *slack.Client) ([]slack.Channel, []*msg, []bayesian.Class) {
 	}
 
 	var messages []*msg
-	var classes []bayesian.Class
+	classMap := make(map[string]struct{})
 
 	for _, channel := range channels {
 
-		history, err := client.GetChannelHistory(channel.ID, slack.HistoryParameters{Oldest: ""})
+		history, err := client.GetChannelHistory(channel.ID, slack.HistoryParameters{
+			Count: messageCount,
+		})
 		if err != nil {
-			log.Errorln("error getting channel history", err)
-			return nil, nil, nil
+			log.Errorf("error getting channel history for '%s' :%v", channel.Name, err)
+			continue
 		}
 
+		log.Debugf("retrieved %d messages from channel %s", len(history.Messages), channel.Name)
+
 		for _, m := range history.Messages {
+			// skip messages without reactions
+			if len(m.Reactions) == 0 {
+				continue
+			}
+
 			messages = append(messages, newMsg(&m))
 			for _, r := range m.Reactions {
-				classes = append(classes, bayesian.Class(r.Name))
+				classMap[r.Name] = struct{}{}
 			}
 		}
 	}
 
+	var classes []bayesian.Class
+	for class := range classMap {
+		classes = append(classes, bayesian.Class(class))
+	}
 	log.Debugln("reaction classes:\n", classes)
 	reactor = NewReactor(classes)
 
