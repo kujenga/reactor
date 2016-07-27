@@ -1,0 +1,21 @@
+hash: fc48858705a3d8babf110b35f38f72cba388b853e102deef1f74590e7c81ef69
+updated: 2016-07-26T23:17:47.187454646-04:00
+imports:
+- name: github.com/BeepBoopHQ/go-slackbot
+  version: 58027c0d5238a0604305652ea526b3c18a7cead1
+- name: github.com/jbrukh/bayesian
+  version: a65fd1effddb7bd71c6bb6ca1876e045a7aeac6e
+- name: github.com/nlopes/slack
+  version: 4feee83bb2b31d790977ce727a028c6a542c72c7
+- name: github.com/Sirupsen/logrus
+  version: a283a10442df8dc09befd873fab202bf8a253d6a
+- name: golang.org/x/net
+  version: 6a513affb38dc9788b449d59ffed099b8de18fa0
+  subpackages:
+  - context
+  - websocket
+- name: golang.org/x/sys
+  version: a646d33e2ee3172a661fc09bca23bb4889a41bc8
+  subpackages:
+  - unix
+devImports: []

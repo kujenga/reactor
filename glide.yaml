@@ -1,0 +1,9 @@
+package: github.com/kujenga/reactor
+import:
+- package: github.com/BeepBoopHQ/go-slackbot
+- package: github.com/Sirupsen/logrus
+- package: github.com/jbrukh/bayesian
+- package: github.com/nlopes/slack
+- package: golang.org/x/net
+  subpackages:
+  - context
