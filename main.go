@@ -191,6 +191,7 @@ func setup(client *slack.Client) ([]slack.Channel, []*msg, []bayesian.Class) {
 type Reactor struct {
 	Classifier *bayesian.Classifier
 	msgs       chan *msg
+	mut        sync.RWMutex
 }
 
 // NewReactor creates a new reactor object
@@ -213,6 +214,9 @@ func NewReactor(classes []bayesian.Class) *Reactor {
 
 // Reaction guesses a reaction for the given text
 func (r *Reactor) Reaction(text string) string {
+	r.mut.RLock()
+	defer r.mut.RUnlock()
+
 	works := strings.Fields(text)
 	scores, inx, _ := r.Classifier.LogScores(works)
 
@@ -227,6 +231,9 @@ func (r *Reactor) Learn(msg *msg) {
 }
 
 func (r *Reactor) train(msg *msg) {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+
 	words := strings.Fields(msg.Text)
 	log.Debugf("training on message:\n    '%s'\n    reactions: %+v", msg.Text, msg.Reactions)
 
