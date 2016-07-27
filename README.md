@@ -1,5 +1,7 @@
 # Reactor
 
+[![CircleCI](https://circleci.com/gh/kujenga/reactor.svg?style=svg)](https://circleci.com/gh/kujenga/reactor)
+
 A Slack bot that guesses crowd reactions to your messages.
 
 <img src="img/nuclear.jpg" width="100" height="100" />
