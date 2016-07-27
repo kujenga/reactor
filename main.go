@@ -56,7 +56,7 @@ func main() {
 	go setup(bot.Client)
 
 	// reintialize the reactor
-	bot.Hear("^update&").MessageHandler(UpdateHandler)
+	bot.Hear("^update$").MessageHandler(UpdateHandler)
 	// display a help message to the user
 	bot.Hear("^help$").MessageHandler(HelpHandler)
 	// react to everything else
