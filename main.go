@@ -51,12 +51,6 @@ func main() {
 
 	log.Infoln("get ready for reactions!")
 
-	// for heroku, we
-
-	go log.Errorln(http.ListenAndServe(port(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Reactor"))
-	})))
-
 	bot := slackbot.New(os.Getenv("SLACK_TOKEN"))
 
 	go setup(bot.Client)
@@ -67,7 +61,12 @@ func main() {
 	bot.Hear("^help$").MessageHandler(HelpHandler)
 	// react to everything else
 	bot.Hear(".*").MessageHandler(ReactionHandler)
-	bot.Run()
+	go bot.Run()
+
+	// for heroku, we have a minimal http handler
+	log.Errorln(http.ListenAndServe(port(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Reactor"))
+	})))
 }
 
 var prefixes = []string{
@@ -100,10 +99,10 @@ func HelpHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent
 	mut.RLock()
 	defer mut.RUnlock()
 
-	log.Infoln("Helping the user:", evt.Text)
+	log.Infoln("Helping the user")
 
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(fmt.Sprintf("@reactor guesses reactions to messages, based on the past %d seen in each channel.\n", messageCount))
+	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on the past %d seen in each channel.\n", messageCount))
 
 	if reactor != nil {
 		buf.WriteString(" It is currently aware of the following reactions:")
