@@ -29,6 +29,8 @@ func main() {
 
 	bot := slackbot.New(os.Getenv("SLACK_TOKEN"))
 
+	go setup(bot.Client)
+
 	// anything with "look around" causes us to intialize the reactor
 	bot.Hear("(?i)look around(.*)").MessageHandler(LookAroundHandler)
 	// react to everything else
@@ -66,12 +68,18 @@ func LookAroundHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.Messag
 	mut.Lock()
 	defer mut.Unlock()
 
-	log.Infoln("looking around for:", evt.Text)
+	channels, messages, _ := setup(bot.Client)
 
-	channels, err := bot.Client.GetChannels(true)
+	bot.Reply(evt, fmt.Sprintf("I've learned from %d messages in %d channels", len(messages), len(channels)), slackbot.WithTyping)
+}
+
+func setup(client *slack.Client) ([]slack.Channel, []*msg, []bayesian.Class) {
+	log.Infoln("setting up the reactor")
+
+	channels, err := client.GetChannels(true)
 	if err != nil {
 		log.Errorln("error getting channels", err)
-		return
+		return nil, nil, nil
 	}
 
 	var messages []*msg
@@ -79,10 +87,10 @@ func LookAroundHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.Messag
 
 	for _, channel := range channels {
 
-		history, err := bot.Client.GetChannelHistory(channel.ID, slack.HistoryParameters{Oldest: ""})
+		history, err := client.GetChannelHistory(channel.ID, slack.HistoryParameters{Oldest: ""})
 		if err != nil {
 			log.Errorln("error getting channel history", err)
-			return
+			return nil, nil, nil
 		}
 
 		for _, m := range history.Messages {
@@ -96,13 +104,14 @@ func LookAroundHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.Messag
 	log.Debugln("reaction classes:\n", classes)
 	reactor = NewReactor(classes)
 
-	log.Infoln("training...")
 	for _, m := range messages {
 		reactor.Learn(m)
 	}
-	log.Infoln("...done training")
 
-	bot.Reply(evt, fmt.Sprintf("I've learned from %d messages in %d channels", len(messages), len(channels)), slackbot.WithTyping)
+	log.Infof("learning on %d messages with %d different reactions in %d channels",
+		len(messages), len(classes), len(channels))
+
+	return channels, messages, classes
 }
 
 // Reactor handles reacting to slack messages
