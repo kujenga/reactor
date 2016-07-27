@@ -102,10 +102,10 @@ func HelpHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent
 	log.Infoln("Helping the user")
 
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on the past %d seen in each channel.\n", messageCount))
+	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on the past %d seen in each channel.", messageCount))
 
 	if reactor != nil {
-		buf.WriteString(" It is currently aware of the following reactions:")
+		buf.WriteString(" I'm currently aware of the following reactions:\n")
 		i := 0
 		for _, class := range reactor.Classifier.Classes {
 			if i == 0 {
