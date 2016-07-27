@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -24,7 +25,7 @@ var (
 
 func main() {
 	log.SetLevel(log.DebugLevel)
-	log.Infoln("get ready to react!")
+	log.Infoln("get ready for reactions!")
 
 	bot := slackbot.New(os.Getenv("SLACK_TOKEN"))
 
@@ -33,6 +34,13 @@ func main() {
 	// react to everything else
 	bot.Hear(".*").MessageHandler(ReactionHandler)
 	bot.Run()
+}
+
+var prefixes = []string{
+	"I'm guessing the reaction will be",
+	"That looks like a",
+	"That's sure to get a",
+	"I bet that people will react with",
 }
 
 // ReactionHandler handles guessing reactions
@@ -49,7 +57,8 @@ func ReactionHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageE
 
 	reaction := reactor.Reaction(evt.Text)
 
-	bot.Reply(evt, fmt.Sprintf("I'm guessing the reaction will be: %s", reaction), slackbot.WithTyping)
+	randPrefix := prefixes[rand.Intn(len(prefixes))]
+	bot.Reply(evt, fmt.Sprintf("%s :%s:", randPrefix, reaction), slackbot.WithTyping)
 }
 
 // LookAroundHandler examines existing messages to gather information
