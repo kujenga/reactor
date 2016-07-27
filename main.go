@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -19,12 +20,20 @@ const (
 )
 
 var (
+	debug = flag.Bool("debug", false, "increase the logging level to debug")
+
 	reactor *Reactor
 	mut     sync.RWMutex
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	flag.Parse()
+
+	if *debug {
+		log.SetLevel(log.DebugLevel)
+		log.Debugln("Debug mode is on")
+	}
+
 	log.Infoln("get ready for reactions!")
 
 	bot := slackbot.New(os.Getenv("SLACK_TOKEN"))
@@ -74,7 +83,7 @@ func LookAroundHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.Messag
 }
 
 func setup(client *slack.Client) ([]slack.Channel, []*msg, []bayesian.Class) {
-	log.Infoln("setting up the reactor")
+	log.Infoln("setting up the reactor...")
 
 	channels, err := client.GetChannels(true)
 	if err != nil {
