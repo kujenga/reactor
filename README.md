@@ -4,6 +4,8 @@ A Slack bot that guesses crowd reactions to your messages.
 
 <img src="img/nuclear.jpg" width="100" height="100" />
 
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/kujenga/reactor/tree/master)
+
 ## Getting Started
 
 Retrieve this repository with:
