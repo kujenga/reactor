@@ -290,12 +290,13 @@ func makeDocument(txt string) []string {
 		matches := linkRegexp.FindStringSubmatch(words[i])
 		if len(matches) > 1 {
 			words[i] = matches[1]
-			continue
 		}
 
 		// trim leading/trailing punctuation
 		words[i] = strings.TrimLeft(words[i], `'"(`)
 		words[i] = strings.TrimRight(words[i], `,;:.!?'")`)
+
+		words[i] = strings.ToLower(words[i])
 	}
 
 	return words
