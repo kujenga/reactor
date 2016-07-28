@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -21,13 +22,11 @@ const (
 	// number of goroutines performing learning on training data
 	// the bayesian library doesn't seem to be threadsafe, so for now this stays at 1
 	learnerCount = 1
-
-	// the maximum number of messages to retrieve from each channel
-	maxMessageCount = 1000
 )
 
 var (
-	debug = flag.Bool("debug", false, "increase the logging level to debug")
+	debug           = flag.Bool("debug", false, "increase the logging level to debug")
+	maxMessageCount = flag.Int("max_msg", 1000, "maximum number of messages to retrieve from each channel")
 
 	learning bool
 
@@ -109,7 +108,7 @@ func HelpHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent
 	log.Infoln("Helping the user")
 
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on up to the past %d seen in each channel.", maxMessageCount))
+	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on up to the past %d seen in each channel.", *maxMessageCount))
 
 	if reactor != nil {
 		buf.WriteString(" I'm currently aware of the following reactions:\n")
@@ -193,13 +192,15 @@ ChannelLoop:
 				}
 			}
 
-			if count > maxMessageCount {
+			if count > *maxMessageCount {
 				break
 			}
 			if !history.HasMore {
 				break
 			}
 		}
+
+		log.Infof("Finished getting message history from the %s channel.", channel.Name)
 	}
 
 	var classes []bayesian.Class
@@ -249,7 +250,7 @@ func (r *Reactor) Reaction(text string) string {
 	r.mut.RLock()
 	defer r.mut.RUnlock()
 
-	works := strings.Fields(text)
+	works := makeDocument(text)
 	scores, inx, _ := r.Classifier.LogScores(works)
 
 	log.Debugln("scores: %v", scores)
@@ -266,8 +267,8 @@ func (r *Reactor) train(msg *msg) {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	words := strings.Fields(msg.Text)
-	log.Debugf("training on message:\n    '%s'\n    reactions: %+v", msg.Text, msg.Reactions)
+	words := makeDocument(msg.Text)
+	log.Debugf("training on message:\n    raw: '%s'\n    words: %s\n    reactions: %+v", msg.Text, words, msg.Reactions)
 
 	for _, reaction := range msg.Reactions {
 		for i := 0; i < reaction.Count; i++ {
@@ -277,7 +278,28 @@ func (r *Reactor) train(msg *msg) {
 
 }
 
-// helper types for classification
+// helpers for classification
+
+var linkRegexp = regexp.MustCompile(`<.*\|(.*)>`)
+
+func makeDocument(txt string) []string {
+	words := strings.Fields(txt)
+
+	for i := range words {
+		// parse slack links
+		matches := linkRegexp.FindStringSubmatch(words[i])
+		if len(matches) > 1 {
+			words[i] = matches[1]
+			continue
+		}
+
+		// trim leading/trailing punctuation
+		words[i] = strings.TrimLeft(words[i], `'"(`)
+		words[i] = strings.TrimRight(words[i], `,;:.!?'")`)
+	}
+
+	return words
+}
 
 type msg struct {
 	Text      string
@@ -306,4 +328,8 @@ func newReaction(r *slack.ItemReaction) *reaction {
 		Name:  r.Name,
 		Count: r.Count,
 	}
+}
+
+func (r *reaction) String() string {
+	return fmt.Sprintf("%s(%d)", r.Name, r.Count)
 }
