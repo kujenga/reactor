@@ -22,12 +22,14 @@ const (
 	// the bayesian library doesn't seem to be threadsafe, so for now this stays at 1
 	learnerCount = 1
 
-	// the number of messages to retrieve from each channel
-	messageCount = 100
+	// the maximum number of messages to retrieve from each channel
+	maxMessageCount = 1000
 )
 
 var (
 	debug = flag.Bool("debug", false, "increase the logging level to debug")
+
+	learning bool
 
 	reactor *Reactor
 	mut     sync.RWMutex
@@ -81,14 +83,19 @@ func ReactionHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageE
 	mut.RLock()
 	defer mut.RUnlock()
 
+	if learning {
+		bot.Reply(evt, "Hold on, I'm still learning about your team!", slackbot.WithTyping)
+		return
+	}
+
 	if reactor == nil {
 		bot.Reply(evt, "I don't know anything about you yet!", slackbot.WithTyping)
 		return
 	}
 
-	log.Infoln("reacting to:", evt.Text)
-
 	reaction := reactor.Reaction(evt.Text)
+
+	log.Infoln("reacting to:", evt.Text, "with:", reaction)
 
 	randPrefix := prefixes[rand.Intn(len(prefixes))]
 	bot.Reply(evt, fmt.Sprintf("%s :%s:", randPrefix, reaction), slackbot.WithTyping)
@@ -102,7 +109,7 @@ func HelpHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEvent
 	log.Infoln("Helping the user")
 
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on the past %d seen in each channel.", messageCount))
+	buf.WriteString(fmt.Sprintf("I guess reactions to messages based on up to the past %d seen in each channel.", maxMessageCount))
 
 	if reactor != nil {
 		buf.WriteString(" I'm currently aware of the following reactions:\n")
@@ -134,6 +141,11 @@ func UpdateHandler(ctx context.Context, bot *slackbot.Bot, evt *slack.MessageEve
 }
 
 func setup(client *slack.Client) ([]slack.Channel, []*msg, []bayesian.Class) {
+	learning = true
+	defer func() {
+		learning = false
+	}()
+
 	log.Infoln("setting up the reactor...")
 
 	channels, err := client.GetChannels(true)
@@ -145,27 +157,47 @@ func setup(client *slack.Client) ([]slack.Channel, []*msg, []bayesian.Class) {
 	var messages []*msg
 	classMap := make(map[string]struct{})
 
+ChannelLoop:
 	for _, channel := range channels {
 
-		history, err := client.GetChannelHistory(channel.ID, slack.HistoryParameters{
-			Count: messageCount,
-		})
-		if err != nil {
-			log.Errorf("error getting channel history for '%s' :%v", channel.Name, err)
-			continue
-		}
+		var (
+			latest string
+			count  int
+			page   int
+		)
 
-		log.Debugf("retrieved %d messages from channel %s", len(history.Messages), channel.Name)
+		for {
+			history, err := client.GetChannelHistory(channel.ID, slack.HistoryParameters{
+				Count:  100,
+				Latest: latest,
+			})
+			if err != nil {
+				log.Errorf("error getting channel history for '%s' :%v", channel.Name, err)
+				continue ChannelLoop
+			}
+			latest = history.Latest
+			count += len(history.Messages)
+			page++
 
-		for _, m := range history.Messages {
-			// skip messages without reactions
-			if len(m.Reactions) == 0 {
-				continue
+			log.Debugf("retrieved %d messages from channel %s", len(history.Messages), channel.Name)
+
+			for _, m := range history.Messages {
+				// skip messages without reactions
+				if len(m.Reactions) == 0 {
+					continue
+				}
+
+				messages = append(messages, newMsg(&m))
+				for _, r := range m.Reactions {
+					classMap[r.Name] = struct{}{}
+				}
 			}
 
-			messages = append(messages, newMsg(&m))
-			for _, r := range m.Reactions {
-				classMap[r.Name] = struct{}{}
+			if count > maxMessageCount {
+				break
+			}
+			if !history.HasMore {
+				break
 			}
 		}
 	}
